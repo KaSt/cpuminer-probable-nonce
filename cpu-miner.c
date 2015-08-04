@@ -1135,6 +1135,11 @@ static void *miner_thread(void *userdata)
 			work.data[19] = 0xffffffffU / opt_n_threads * thr_id;
 		} else
 			work.data[19]++;
+
+		if (work.data[19] < MIN_PROBABLE_NONCE && opt_algo == ALGO_SHA256D ) {
+			work.data[19] = MIN_PROBABLE_NONCE;
+		}
+		
 		pthread_mutex_unlock(&g_work_lock);
 		work_restart[thr_id].restart = 0;
 		
@@ -1160,6 +1165,11 @@ static void *miner_thread(void *userdata)
 		else
 			max_nonce = work.data[19] + max64;
 		
+		// Theory to be proved, max nonce according to trend	
+		if (opt_algo == ALGO_SHA256D) {
+			max_nonce = MAX_PROBABLE_NONCE;
+		}
+	
 		hashes_done = 0;
 		gettimeofday(&tv_start, NULL);
 

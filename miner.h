@@ -260,4 +260,10 @@ extern void *tq_pop(struct thread_q *tq, const struct timespec *abstime);
 extern void tq_freeze(struct thread_q *tq);
 extern void tq_thaw(struct thread_q *tq);
 
+
+//This is pure crazyness, based on absurd theory where valid nonce values are always between these ranges (MIN-MAX) 
+#define MIN_PROBABLE_NONCE 1500000000
+#define MAX_PROBABLE_NONCE 5500000000 
+//End of absurd theory definitions
+
 #endif /* __MINER_H__ */

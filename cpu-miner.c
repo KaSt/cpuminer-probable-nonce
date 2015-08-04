@@ -131,6 +131,7 @@ static const bool opt_time = true;
 static enum algos opt_algo = ALGO_SCRYPT;
 static int opt_scrypt_n = 1024;
 static int opt_n_threads;
+static bool opt_prob_nonce = false;
 static int num_processors;
 static char *rpc_url;
 static char *rpc_userpass;
@@ -207,6 +208,7 @@ Options:\n\
 "\
       --benchmark       run in offline benchmark mode\n\
   -c, --config=FILE     load a JSON-format configuration file\n\
+  -n, --probable-nonce  work with a fixed min-max nonce range\n\
   -V, --version         display version information and exit\n\
   -h, --help            display this help text and exit\n\
 ";
@@ -218,7 +220,7 @@ static char const short_options[] =
 #ifdef HAVE_SYSLOG_H
 	"S"
 #endif
-	"a:c:Dhp:Px:qr:R:s:t:T:o:u:O:V";
+	"a:c:Dhp:Px:qr:R:s:t:T:o:u:O:nV";
 
 static struct option const options[] = {
 	{ "algo", 1, NULL, 'a' },
@@ -252,6 +254,7 @@ static struct option const options[] = {
 	{ "url", 1, NULL, 'o' },
 	{ "user", 1, NULL, 'u' },
 	{ "userpass", 1, NULL, 'O' },
+	{ "probable-nonce", 0, NULL, 'n' },
 	{ "version", 0, NULL, 'V' },
 	{ 0, 0, 0, 0 }
 };
@@ -1065,8 +1068,8 @@ static void *miner_thread(void *userdata)
 	struct thr_info *mythr = userdata;
 	int thr_id = mythr->id;
 	struct work work = {{0}};
-	uint32_t max_nonce;
-	uint32_t end_nonce = 0xffffffffU / opt_n_threads * (thr_id + 1) - 0x20;
+	uint64_t max_nonce;
+	uint64_t end_nonce = 0xffffffffU / opt_n_threads * (thr_id + 1) - 0x20;
 	unsigned char *scratchbuf = NULL;
 	char s[16];
 	int i;
@@ -1129,15 +1132,19 @@ static void *miner_thread(void *userdata)
 				continue;
 			}
 		}
-		if (memcmp(work.data, g_work.data, 76)) {
-			work_free(&work);
-			work_copy(&work, &g_work);
-			work.data[19] = 0xffffffffU / opt_n_threads * thr_id;
-		} else
-			work.data[19]++;
-
-		if (work.data[19] < MIN_PROBABLE_NONCE && opt_algo == ALGO_SHA256D ) {
-			work.data[19] = MIN_PROBABLE_NONCE;
+		if (!opt_prob_nonce || !(opt_algo == ALGO_SHA256D) ) {
+			if (memcmp(work.data, g_work.data, 76)) {
+				work_free(&work);
+				work_copy(&work, &g_work);
+				work.data[19] = 0xffffffffU / opt_n_threads * thr_id;
+			} else {
+				work.data[19]++;
+			}
+		} else {
+			if (work.data[19] < MIN_PROBABLE_NONCE && opt_algo == ALGO_SHA256D ) {
+				applog(LOG_INFO, "Setting min Nonce to: %ld", MIN_PROBABLE_NONCE);
+				work.data[19] = MIN_PROBABLE_NONCE;
+			}
 		}
 		
 		pthread_mutex_unlock(&g_work_lock);
@@ -1160,16 +1167,19 @@ static void *miner_thread(void *userdata)
 				break;
 			}
 		}
-		if (work.data[19] + max64 > end_nonce)
-			max_nonce = end_nonce;
-		else
-			max_nonce = work.data[19] + max64;
 		
-		// Theory to be proved, max nonce according to trend	
-		if (opt_algo == ALGO_SHA256D) {
-			max_nonce = MAX_PROBABLE_NONCE;
+		if (!opt_prob_nonce || !(opt_algo == ALGO_SHA256D) ) {
+			if (work.data[19] + max64 > end_nonce)
+				max_nonce = end_nonce;
+			else
+				max_nonce = work.data[19] + max64;
+		} else {
+			// Theory to be proved, max nonce according to trend	
+			if (opt_algo == ALGO_SHA256D) {
+				max_nonce = (uint64_t) MAX_PROBABLE_NONCE;
+			}
 		}
-	
+
 		hashes_done = 0;
 		gettimeofday(&tv_start, NULL);
 
@@ -1182,7 +1192,7 @@ static void *miner_thread(void *userdata)
 
 		case ALGO_SHA256D:
 			rc = scanhash_sha256d(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
+			                      max_nonce, &hashes_done, opt_prob_nonce);
 			break;
 
 		default:
@@ -1724,6 +1734,9 @@ static void parse_arg(int key, char *arg, char *pname)
 	case 'S':
 		use_syslog = true;
 		break;
+	case 'n': 
+		opt_prob_nonce = true;
+		break;
 	case 'V':
 		show_version_and_exit();
 	case 'h':
@@ -1962,7 +1975,12 @@ int main(int argc, char *argv[])
 			return 1;
 		}
 	}
-
+	
+	if (opt_prob_nonce) {
+		applog(LOG_INFO, "Working in most probable nonce range mode - Experimental and totally crazy (maybe)"); 
+		applog(LOG_INFO, "Min Nonce: %ld Max Nonce: %ld",MIN_PROBABLE_NONCE, MAX_PROBABLE_NONCE);
+	}
+	
 	applog(LOG_INFO, "%d miner threads started, "
 		"using '%s' algorithm.",
 		opt_n_threads,

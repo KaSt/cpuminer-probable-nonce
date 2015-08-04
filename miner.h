@@ -152,7 +152,7 @@ void sha256_transform_8way(uint32_t *state, const uint32_t *block, int swap);
 #endif
 
 extern int scanhash_sha256d(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done);
+	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done, bool opt_prob_nonce);
 
 extern unsigned char *scrypt_buffer_alloc(int N);
 extern int scanhash_scrypt(int thr_id, uint32_t *pdata,
@@ -262,8 +262,8 @@ extern void tq_thaw(struct thread_q *tq);
 
 
 //This is pure crazyness, based on absurd theory where valid nonce values are always between these ranges (MIN-MAX) 
-#define MIN_PROBABLE_NONCE 1500000000
-#define MAX_PROBABLE_NONCE 5500000000 
+#define  MIN_PROBABLE_NONCE 1500000000
+#define  MAX_PROBABLE_NONCE 5500000000
 //End of absurd theory definitions
 
 #endif /* __MINER_H__ */

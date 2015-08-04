@@ -473,23 +473,29 @@ void sha256d_ms_4way(uint32_t *hash,  uint32_t *data,
 	const uint32_t *midstate, const uint32_t *prehash);
 
 static inline int scanhash_sha256d_4way(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done)
+	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done, bool opt_prob_nonce)
 {
 	uint32_t data[4 * 64] __attribute__((aligned(128)));
 	uint32_t hash[4 * 8] __attribute__((aligned(32)));
 	uint32_t midstate[4 * 8] __attribute__((aligned(32)));
 	uint32_t prehash[4 * 8] __attribute__((aligned(32)));
 	uint32_t n = pdata[19] - 1;
-	if (n < MIN_PROBABLE_NONCE ) {
-		n = MIN_PROBABLE_NONCE;
-	}
-	if (n > MAX_PROBABLE_NONCE ) {
-		printf("Arrived at max probable nonce: %ld:\n",n);
-		pdata[19] = n;
-		return 0;
+	uint32_t first_nonce;
+	
+	if (opt_prob_nonce) {
+		if (n < MIN_PROBABLE_NONCE ) {
+			n = MIN_PROBABLE_NONCE;
+		}
+		if (n > MAX_PROBABLE_NONCE ) {
+			printf("Arrived at max probable nonce: %ld:\n",n);
+			pdata[19] = n;
+			return 0;
+		}
+		first_nonce = n;
+	} else {
+		first_nonce = pdata[19];
 	}
 
-	const uint32_t first_nonce = n; //pdata[19];
 	const uint32_t Htarg = ptarget[7];
 	int i, j;
 	
@@ -541,23 +547,29 @@ void sha256d_ms_8way(uint32_t *hash,  uint32_t *data,
 	const uint32_t *midstate, const uint32_t *prehash);
 
 static inline int scanhash_sha256d_8way(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done)
+	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done, bool opt_prob_nonce)
 {
 	uint32_t data[8 * 64] __attribute__((aligned(128)));
 	uint32_t hash[8 * 8] __attribute__((aligned(32)));
 	uint32_t midstate[8 * 8] __attribute__((aligned(32)));
 	uint32_t prehash[8 * 8] __attribute__((aligned(32)));
 	uint32_t n = pdata[19] - 1;
-	if (n < MIN_PROBABLE_NONCE ) {
-                n = MIN_PROBABLE_NONCE;
-        }
-        if (n > MAX_PROBABLE_NONCE ) {
-		printf("Arrived at max probable nonce: %ld:\n",n);
-                pdata[19] = n;
-                return 0;
-        }
-	
-	const uint32_t first_nonce = n; //pdata[19];
+	uint32_t first_nonce;
+
+	if (opt_prob_nonce) {
+		if (n < MIN_PROBABLE_NONCE ) {
+                	n = MIN_PROBABLE_NONCE;
+        	}
+        	if (n > MAX_PROBABLE_NONCE ) {
+			printf("Arrived at max probable nonce: %ld:\n",n);
+                	pdata[19] = n;
+                	return 0;
+        	}	
+		first_nonce = n;
+	} else {
+	 	first_nonce = pdata[19];
+	}
+
 	const uint32_t Htarg = ptarget[7];
 	int i, j;
 	
@@ -604,35 +616,40 @@ static inline int scanhash_sha256d_8way(int thr_id, uint32_t *pdata,
 #endif /* HAVE_SHA256_8WAY */
 
 int scanhash_sha256d(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
-	uint32_t max_nonce, unsigned long *hashes_done)
+	uint32_t max_nonce, unsigned long *hashes_done, bool opt_prob_nonce)
 {
 	uint32_t data[64] __attribute__((aligned(128)));
 	uint32_t hash[8] __attribute__((aligned(32)));
 	uint32_t midstate[8] __attribute__((aligned(32)));
 	uint32_t prehash[8] __attribute__((aligned(32)));
 	uint32_t n = pdata[19] - 1;
-	if (n < MIN_PROBABLE_NONCE ) {
-                n = MIN_PROBABLE_NONCE;
-        }
-        if (n > MAX_PROBABLE_NONCE ) {
-		printf("Arrived at max probable nonce: %ld:\n",n);
-                pdata[19] = n;
-                return 0;
-        }
+	uint32_t first_nonce;
 
+	if (opt_prob_nonce) {
+		if (n < MIN_PROBABLE_NONCE ) {
+                	n = MIN_PROBABLE_NONCE;
+        	}
+        	if (n > MAX_PROBABLE_NONCE ) {
+			printf("Arrived at max probable nonce: %ld:\n",n);
+                	pdata[19] = n;
+                	return 0;
+        	}
+		first_nonce = n;
+	} else {
+		first_nonce = pdata[19];
+	}
 
-	const uint32_t first_nonce = n; //pdata[19];
 	const uint32_t Htarg = ptarget[7];
 	
 #ifdef HAVE_SHA256_8WAY
 	if (sha256_use_8way())
 		return scanhash_sha256d_8way(thr_id, pdata, ptarget,
-			max_nonce, hashes_done);
+			max_nonce, hashes_done, opt_prob_nonce);
 #endif
 #ifdef HAVE_SHA256_4WAY
 	if (sha256_use_4way())
 		return scanhash_sha256d_4way(thr_id, pdata, ptarget,
-			max_nonce, hashes_done);
+			max_nonce, hashes_done, opt_prob_nonce);
 #endif
 	
 	memcpy(data, pdata + 16, 64);
